@@ -1,6 +1,8 @@
 # receipt-rename
 
-[Claude Code](https://docs.anthropic.com/en/docs/claude-code) 用スキル。ScanSnap等でスキャンしたレシート/領収書PDFのファイル名を、AIが中身を読み取って正しい形式に自動修正します。
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code) 用スキル。ScanSnap等でスキャンしたレシート/領収書のファイル名を、AIが中身を読み取って正しい形式に自動修正します。
+
+**対応形式**: PDF / JPG / JPEG / PNG
 
 ## どんな問題を解決するか
 
@@ -11,21 +13,22 @@ ScanSnapなどのドキュメントスキャナーは、レシートをスキャ
 20260221_<領収書>_500.pdf         ← 店名がタグのまま
 20250314_0 3扱店長_4550.pdf       ← 完全に文字化け
 20000418_ネ池袋店_4230.pdf        ← 年が2000年になっている
+IMG_2048.jpg                      ← スマホ撮影でそもそも情報なし
 ```
 
-このスキルは、Claude Codeの画像認識能力を使ってPDFの中身を直接読み取り、正しいファイル名に修正します：
+このスキルは、Claude Codeの画像認識能力で中身を直接読み取り、正しいファイル名に修正します：
 
 ```
 20250315_サイゼリヤ渋谷店_1200.pdf
 20250320_スターバックス新宿店_500.pdf
 20250314_うなぎしら河名駅店_4550.pdf
-20250418_カイセンマーケットルミネ池袋店_4230.pdf
+20250418_カイセンマーケット池袋店_4230.jpg
 ```
 
 ## 命名規則
 
 ```
-YYYYMMDD_店名_金額.pdf
+YYYYMMDD_店名_金額.{pdf,jpg,png}
 ```
 
 | 項目 | ルール |
@@ -33,6 +36,7 @@ YYYYMMDD_店名_金額.pdf
 | 日付 | レシートに印字された取引日（スキャン日ではない）。YYYYMMDD形式 |
 | 店名 | 店舗が特定できる名前。「株式会社」等は省略可 |
 | 金額 | 合計金額（税込）。数字のみ、カンマなし |
+| 拡張子 | 元のファイルの拡張子をそのまま維持 |
 
 ## インストール
 
@@ -49,26 +53,29 @@ git clone https://github.com/nicotomo-yashima/receipt-rename.git ~/.claude/skill
 ## 前提条件
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) がインストール済み
-- macOS（`brew` でのインストールに対応。Linux の場合は `apt-get install poppler-utils`）
-- `poppler`（初回実行時に自動インストールされます）
+- **PDFを扱う場合**: `poppler` が必要（初回実行時に自動インストール）
+  - macOS: `brew install poppler`
+  - Linux: `apt-get install poppler-utils`
+- **JPG/PNGのみの場合**: 追加依存なし
 
 ## 使い方
 
 Claude Code 内で以下のコマンドを実行：
 
 ```
-/receipt-rename                          # カレントディレクトリのPDFを処理
+/receipt-rename                          # カレントディレクトリのファイルを処理
 /receipt-rename ~/Desktop/レシート        # フォルダを指定して処理
 ```
 
 ## 処理の流れ
 
 ```
-PDFファイル検出
+PDF/JPG/PNG ファイル検出
     ↓
-pdftoppmでPNG画像に変換（6ファイルずつ並列処理）
+┌─ PDF → pdftoppm で PNG に変換
+└─ JPG/PNG → そのまま（変換不要）
     ↓
-Claude の画像認識で日付・店名・金額を読み取り
+Claude の画像認識で日付・店名・金額を読み取り（6ファイルずつ並列）
     ↓
 現在のファイル名と照合
     ↓
@@ -84,8 +91,8 @@ Claude の画像認識で日付・店名・金額を読み取り
 | 状況 | 命名例 |
 |------|--------|
 | 日付不明 | `(日付不明)_店名_金額.pdf` |
-| 店名不明 | `YYYYMMDD_(店名不明)_金額.pdf` |
-| 金額不明 | `YYYYMMDD_店名_(金額不明).pdf` |
+| 店名不明 | `YYYYMMDD_(店名不明)_金額.jpg` |
+| 金額不明 | `YYYYMMDD_店名_(金額不明).png` |
 
 ## よくあるOCR誤りパターン
 
@@ -98,6 +105,7 @@ Claude の画像認識で日付・店名・金額を読み取り
 | 金額が未取得 | `_(金額).pdf` | OCRが金額欄を認識できず |
 | 文字化け | `_<店従業_` | OCR精度の問題 |
 | 年が異常 | `20000418_` | OCRの数字誤認識 |
+| 情報なし | `IMG_2048.jpg` | スマホ撮影で命名情報なし |
 
 ## ライセンス
 
